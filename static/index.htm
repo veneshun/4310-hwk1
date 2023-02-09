@@ -1,0 +1,359 @@
+<html>
+    <head>
+        <meta charset="UTF-8">
+
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script src="https://d3js.org/topojson.v2.min.js"></script>
+
+        <link rel="icon" href="favicon.png">
+        <title>INFO 4310 HWK 1 - vee4 </title>
+
+        <style>
+            body{
+                background-color: #f9f7f5;
+                font-family: 'Lato', 'Helvetica', sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-content: center;
+                margin: 20px;
+                font-family: "Avenir", sans-serif;
+            }
+
+            h1 {
+                display: flex;
+                font-family: "Sinhala MN";
+                text-align: center;
+                align-self: center;
+                align-content: center;
+            }
+
+            h1.title{
+                /* display: flex; */
+                font-family: "Avenir", sans-serif;
+                position: relative;
+                font-size: 50px;
+                font-weight: bold;
+                color: #944e1b;
+            }
+
+            div.intro{
+                display: flex;
+                flex-direction: column;
+                align-content: center;
+            }
+
+            h2 {
+                font-family: "Sinhala MN";
+                text-align: center;
+                align-self: center;
+                align-content: center;
+                font-weight: lighter;
+            }
+
+
+            .neighborhood {
+                fill: #EEE;
+                stroke: white;
+                stroke-width: 2px;
+            }
+
+            #catalog {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                list-style: none;
+
+            }
+
+            .catalog {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                list-style: none;
+                width: 250px; 
+                margin: auto;
+            }
+
+            .catalog ul{
+                list-style: none;
+                margin: 10px;
+                border-style: outset;
+                padding: 5px;
+            }
+
+            .card{
+                margin: 15px;
+            }
+
+            .card-title{
+                margin: 25px;
+                font-weight: bold;
+                font-size: large;
+                text-align: center;
+                color: #944e1b;
+            }
+
+            svg{
+                display: block;
+                margin: auto;
+                padding-bottom: 60px;
+            }
+
+
+        </style>
+    </head>
+
+    <body>
+        <header>
+            <h3>INFO 4310 HWK 1 - Victoria Eshun (vee4)</h3>
+        </header>
+
+        <div class="intro">
+            <h1 class="title">The Trees of San Francisco</h1>
+            <h1>Most Common Tree Types by Genus</h1>
+            <h2>Are you planning on planting a new tree in San Francisco? These trees have the highest number of species counts across the city.</h2>
+        </div>
+
+        <p>
+            <svg id="genus" height="700" width="1400" padding="50" style="background-color:'green'"></svg>
+
+            <script>
+                const networkSVG = d3.select("#genus")
+                const networkMargins = { top: 20, right: 20, bottom: 20, left:20};
+                const networkWidth = networkSVG.attr("width") - networkMargins.left - networkMargins.right
+                const networkHeight = networkSVG.attr("height") - networkMargins.top - networkMargins.bottom
+                const network = networkSVG.append("g").attr("transform","translate(50,50)");
+
+                
+
+                const drawNetwork = async function() {
+                    const commonlinks = await d3.csv("genus_network.csv");
+                    const links = await d3.csv("edges.csv")
+
+                    commonlinks.forEach( (d, i) => {
+                        d['count'] = Number(d['count']);
+                        d['group'] = Number(d['group']);
+                    });
+
+
+                    const genusExtent = d3.extent(commonlinks, d => d['count'] )
+                   
+
+                    const genusRadiusScale = d3.scaleSqrt()
+                            .domain(genusExtent)
+                            .range([10, 75]) 
+
+
+                    const genusScale = d3.scaleOrdinal(d3.schemeGreens[9])
+
+                    const genusGroup = network.selectAll("#group").data(commonlinks).enter().append("g").attr("id", "group")
+
+                   
+                    
+                    var forceSim = d3.forceSimulation()
+                                     .nodes(commonlinks)
+                                     .force("links", d3.forceLink()
+                                                       .links(links)
+                                                       .distance(10)
+                                                       .strength(0.4)
+                                                       .id(d => d.id))
+                                     .force("center", d3.forceCenter()
+                                                        .x(networkWidth * 0.45)
+                                                        .y(networkHeight / 2)
+                                                        .strength(1))
+                                     .force("repulse", d3.forceManyBody().strength(15).distanceMax(20))
+                                     .force("collision", d3.forceCollide()
+                                                           .strength(4)
+                                                           .radius( d => {
+                                                        if (d.genus === "San Francisco's Trees") { return 125 }
+                                                        else { return genusRadiusScale(d.count) + 15}})
+                                                           .iterations(10))
+                                     .force("xpos", d3.forceX(networkWidth/2).strength(0.15))                                  
+                                     .force("ypos", d3.forceY(networkHeight / 2)
+                                                      .strength(0.5))                                   
+                                     .on("tick", createNetwork)
+                                     .stop();
+
+                    
+
+                    function createNetwork() {
+                        let lines = network.selectAll("line.link").data(links)
+                                   .join(
+                                        enter => enter.append("line")
+                                                        .attr("class","link")
+                                                        .attr("stroke","lightgrey") 
+                                                        .attr("stroke-width", 1)
+                                        )
+                                        .attr("x1", d => d.source.x).attr("x2", d => d.target.x)   
+                                        .attr("y1", d => d.source.y).attr("y2", d => d.target.y);
+                        
+                        
+                        let genus = genusGroup.append("circle")
+                                           .attr("class", "node")
+                                            .attr("id", "group")
+                                            .attr("r", d => {
+                                                        if (d.genus === "San Francisco's Trees") { return 110 }
+                                                        else { return genusRadiusScale(d.count) }})
+                                            .attr("cx", 0)
+                                            .attr("cy", networkHeight/2)
+                                            .attr("fill", d => {
+                                                        if (d.genus === "San Francisco's Trees") { return "#A67B5B" }
+                                                        else { return genusScale(d.count) }})
+                                            .attr("stroke-width", 1)
+                                            .attr("stroke", "darkgrey")
+
+                        lines.lower()
+
+                        let genusLabels = genusGroup.append("text")
+                                            .attr("id", "group")
+                                            .attr("text-anchor", "middle")
+                                            .attr("dy", ".35em")
+                                            .attr("font-size", "16px")
+                                            .attr("letter-spacing", ".1rem")
+                                            .attr("x", d => Math.min(networkWidth, d.x))
+                                            .attr("y", d => Math.min(networkHeight, d.y))
+                                            .attr("font-weight", "bold")
+                                            .text(d => d.genus)
+
+                                        genusLabels.raise()
+
+                        genus.attr("cx", d => Math.min(networkWidth, d.x))
+                               .attr("cy", d => Math.min(networkHeight, d.y))
+                }
+
+                while (forceSim.alpha() > 0.01){
+                        forceSim.tick()
+                    }
+                createNetwork();
+
+
+                
+                } 
+                drawNetwork();
+
+            </script>
+        </p>
+
+        <p>
+            <h1>Species Diversity</h1>
+            <h2>There are <em> 416 </em> different tree species found in San Francisco. The most abundant ones are labeled in this chart.</h2>
+            
+            <svg id="species-diversity" height="500" width="1400"></svg>
+
+            <script>
+                const speciesSVG = d3.select("#species-diversity")
+                const speciesMargins = { top: 20, right: 20, bottom: 20, left:20};
+                const speciesWidth = speciesSVG.attr("width") - speciesMargins.left - speciesMargins.left
+                const speciesHeight = speciesSVG.attr("height") - speciesMargins.top - speciesMargins.bottom
+                const annotations = speciesSVG.append("g").attr("id", "annotations")
+                  .attr("transform","translate("+speciesMargins.left+","+speciesMargins.top+")");
+                
+
+                const drawSpeciesBubbles = async function() {
+                    const species = await d3.csv("species.csv");
+                    
+                    const speciesCountExtent = d3.extent(species, d => d['count'] )
+                    const speciesRadiusScale = d3.scaleSqrt().domain(speciesCountExtent).range([0, 15])
+                    const speciesColorScale = d3.scaleOrdinal(d3.schemeBlues[9])
+
+                    const bubbles = annotations.selectAll("#bubble").data(species).enter().append("g").attr("id", "bubble")
+
+
+                    species.forEach( (d, i) => {
+                        d['count'] = Number(d['count']);
+                    });
+
+                    let bubbleCircles = bubbles.append("circle")
+                                                .attr("class", "species")
+                                                .attr("r", d => speciesRadiusScale(d.count))
+                                                .attr("cx", 0)
+                                                .attr("cy", speciesHeight/2)
+                                                .attr("fill", d => speciesColorScale(d.count))
+                                                .attr("stroke-width", 1)
+                                                .attr("stroke", "darkgrey");
+
+                    let bubbleLabels = bubbles.append("text")
+                                            .attr("id", "label")
+                                            .attr("text-anchor", "middle")
+                                            .attr("dominant-baseline",  "middle")
+                                            .attr("dy", ".35em")
+                                            .attr("font-size", "11px")
+                                            
+                                            
+                    var forceSim = d3.forceSimulation()
+                                     .nodes(species)
+                                     .force("center", d3.forceCenter()
+                                                        .x(speciesWidth / 2)
+                                                        .y(speciesHeight / 2))
+                                     .force("repulse", d3.forceManyBody().strength(0.005))
+                                     .force("collision", d3.forceCollide()
+                                                           //.strength(.2)
+                                                           .radius(d => (speciesRadiusScale(d.count) + 3))
+                                                           .iterations(1))
+                                     .force("xpos", d3.forceX()
+                                                      .strength(0.025))
+                                     .force("ypos", d3.forceY()
+                                                      .strength(0.5))
+                                     .on("tick", function(d){
+                                        bubbleCircles.attr("cx", d => Math.min(speciesWidth, d.x))
+                                            .attr("cy", d => Math.min(speciesHeight, d.y))
+                                        
+                                        bubbleLabels.attr("x", d => Math.min(speciesWidth, d.x))
+                                              .attr("y", d => Math.min(speciesHeight, d.y))
+                                              .attr("width", "12px")
+                                              .text(function(d) { 
+                                                if (d.count > 600 ) {return d.common_name}
+                                                })
+
+                                        bubbleLabels.raise()
+                                     });
+                    while (forceSim.alpha() > 0.01){
+                        forceSim.tick()
+                    }
+                
+                } 
+                drawSpeciesBubbles();
+
+            </script>
+        </p> 
+
+
+        
+
+        <p>
+            <h1>Species Details</h1>
+            <h2>Here, you can compare the details of some of the most common species. </h2>
+            <div id="catalog"></div>
+
+
+            <script>
+                const requestData = async () => {
+                    const speciesDetails = await d3.csv('species_averages.csv')
+                    const spanDiv = d3.select('div#catalog')
+                    var img = {id: 1, imgsrc:"tree.png"}
+
+                    for ( let element of speciesDetails) {
+                        const ul = d3.select('ul')
+                        var itemSpan =  spanDiv.append("span")
+                            .attr("class", "catalog")
+                            .style("padding", 10)
+
+
+                        var card = itemSpan.append('ul')
+
+                        card.append('li').attr("class", "card-title").text(function() { return element.common_name})
+                        card.append('li').attr("src", img.imgsrc)
+                        card.append('li').attr("class", "card").attr("word-wrap", "break-word").text(function() { return "Scientific name: " + element.scientific_name})
+                        card.append('li').attr("class", "card").text(function() { return "Average DBH: " + element.DBH})
+                        card.append('li').attr("class", "card").text(function() { return "Commonly planted in: " + element.Month})
+
+                    }               
+                }
+                requestData();
+                
+
+            </script>
+
+        </p>
+    </body>
+</html>
